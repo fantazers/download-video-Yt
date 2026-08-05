@@ -1,0 +1,94 @@
+from pytubefix import YouTube
+from colorama import init, Fore, Style
+import os
+import sys
+import subprocess
+
+init(autoreset=True)
+
+def on_progress(stream, chunk, bytes_remaining):
+    """Колбэк для отображения прогресса скачивания"""
+    total_size = stream.filesize
+    bytes_downloaded = total_size - bytes_remaining
+    percentage = (bytes_downloaded / total_size) * 100
+    progress_bar = f"\rПрогресс: {percentage:.1f}% | {bytes_downloaded / 1024 / 1024:.1f}/{total_size / 1024 / 1024:.1f} МБ"
+    sys.stdout.write(Fore.CYAN + progress_bar + Fore.RESET)
+    sys.stdout.flush()
+
+def download_video():
+    url = input(Fore.CYAN + "Введите URL видео с YouTube: ")
+    try:
+        yt = YouTube(url, on_progress_callback=on_progress)
+        print(Fore.GREEN + f"Название видео: {yt.title}")
+
+        video_streams = yt.streams.filter(only_video=True, file_extension='mp4').order_by('resolution').desc()
+        audio_streams = yt.streams.filter(only_audio=True, file_extension='mp4')
+
+        if not video_streams or not audio_streams:
+            print(Fore.RED + "Нет доступных потоков для скачивания.")
+            return
+
+        print(Fore.YELLOW + "\nДоступные качества (разрешения):")
+        options = {i: stream for i, stream in enumerate(video_streams, 1)}
+        for i, stream in options.items():
+            res = stream.resolution
+            fps = stream.fps
+            size_mb = round(stream.filesize / (1024**2), 2)
+            print(f"{i}. {res}@{fps}fps ({size_mb} МБ)")
+
+        selected_video = None
+        while selected_video is None:
+            try:
+                choice = int(input(Fore.BLUE + "\nВыберите качество (номер): "))
+                selected_video = options.get(choice)
+                if not selected_video:
+                    print(Fore.RED + "Неверный номер!")
+            except ValueError:
+                print(Fore.RED + "Введите число!")
+
+        selected_audio = audio_streams.order_by('abr').desc().first()
+
+        video_path = selected_video.download()
+        audio_path = selected_audio.download()
+
+        base_name = os.path.splitext(selected_video.default_filename)[0]
+        output_path = base_name + "_merged.mp4"
+
+        subprocess.run([
+            r"C:\Program Files\Common Files\ffmpeg-8.1.1-full_build\bin\ffmpeg.exe",  # <-- укажите путь к вашему ffmpeg.exe
+            "-i", video_path,
+            "-i", audio_path,
+            "-c:v", "copy",
+            "-c:a", "aac",
+            output_path
+        ], check=True)
+
+        for path in [video_path, audio_path]:
+            try:
+                os.remove(path)
+            except OSError:
+                pass  #Игнорируем ошибки удаления (если файлы уже удалены)
+
+        print("\n" + Fore.GREEN + "Скачивание и объединение завершено!")
+        print(Fore.WHITE + f"Файл сохранён как: {output_path}")
+
+    except Exception as e:
+        print(Fore.RED + f"Ошибка: {e}")
+
+def main():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(Style.BRIGHT + Fore.MAGENTA + "=" * 50)
+    print(Style.BRIGHT + Fore.MAGENTA + " PYTHON_YOUTUBE_DOWNLOADER")
+    print(Style.BRIGHT + Fore.MAGENTA + "=" * 50)
+
+    while True:
+        download_video()
+        again = input(Fore.BLUE + "\nХотите скачать ещё? (Да/Нет): ").lower().strip()
+        if again in ['нет', 'н', 'no', 'n']:
+            print(Fore.YELLOW + "До свидания!")
+            break
+        elif again not in ['да', 'д', 'yes', 'y']:
+            print(Fore.RED + "Ответьте 'Да' или 'Нет'.")
+
+if __name__ == "__main__":
+    main()
