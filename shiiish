@@ -7,7 +7,6 @@ import subprocess
 init(autoreset=True)
 
 def on_progress(stream, chunk, bytes_remaining):
-    """Колбэк для отображения прогресса скачивания"""
     total_size = stream.filesize
     bytes_downloaded = total_size - bytes_remaining
     percentage = (bytes_downloaded / total_size) * 100
